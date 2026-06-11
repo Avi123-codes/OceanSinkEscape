@@ -1,6 +1,3 @@
-# OceanSinkEscape
-BuildingBlocs submission
-
 # THE GREAT SINK ESCAPE
 
 ## OVERVIEW
