@@ -1,32 +1,105 @@
 //follwing the soap, wasnt working the other way
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class CameraFollow : MonoBehaviour
 {
-    public Transform target;
+    [Header("Target")]
+    public Transform target;          
+    public Transform cameraTarget;    
 
-    public Vector3 offset =
-        new Vector3(0f, 8f, -10f);
+    [Header("Orbit")]
+    public float mouseSensitivity = 2f;
+    public float yawAngle   = 0f;     
+    public float pitchAngle = 20f;    
 
-    public float smoothSpeed = 5f;
+    [Header("Pitch Limits")]
+    public float minPitch = -10f;
+    public float maxPitch =  70f;
+
+    [Header("Distance & Height")]
+    public float distance = 8f;
+
+    [Header("Smoothing")]
+    public float positionSmooth = 8f;
+    public float rotationSmooth = 10f;
+
+    
+    InputAction lookAction;
+
+    void Start()
+    {
+        lookAction = InputSystem.actions.FindAction("Look");
+
+        
+        Vector3 angles = transform.eulerAngles;
+        yawAngle   = angles.y;
+        pitchAngle = angles.x;
+
+        Cursor.lockState = CursorLockMode.Locked;
+    }
 
     void LateUpdate()
     {
-        if (target == null)
-            return;
+        if (target == null) return;
 
-        Vector3 desiredPosition =
-            target.position + offset;
+        HandleOrbitInput();
+        ApplyCameraTransform();
+        UpdateCameraTargetForward();
+    }
 
-        transform.position =
-            Vector3.Lerp(
-                transform.position,
-                desiredPosition,
-                smoothSpeed * Time.deltaTime
-            );
 
-        transform.LookAt(
-            target.position + Vector3.up * 2f
+
+    void HandleOrbitInput()
+    {
+        if (Cursor.lockState != CursorLockMode.Locked) return;
+
+        Vector2 look = lookAction.ReadValue<Vector2>();
+
+        yawAngle   += look.x * mouseSensitivity;
+        pitchAngle -= look.y * mouseSensitivity; // subtract so mouse-up = camera-up
+        pitchAngle  = Mathf.Clamp(pitchAngle, minPitch, maxPitch);
+    }
+
+    // Canera
+
+    void ApplyCameraTransform()
+    {
+        
+        Quaternion desiredRot = Quaternion.Euler(pitchAngle, yawAngle, 0f);
+
+        
+        Vector3 desiredPos = target.position - desiredRot * Vector3.forward * distance;
+
+        
+        transform.position = Vector3.Lerp(
+            transform.position,
+            desiredPos,
+            positionSmooth * Time.deltaTime
         );
+
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            desiredRot,
+            rotationSmooth * Time.deltaTime
+        );
+    }
+
+    // Camera Target
+    void UpdateCameraTargetForward()
+    {
+        if (cameraTarget == null) return;
+
+        cameraTarget.position = target.position;
+        cameraTarget.rotation = Quaternion.Euler(0f, yawAngle, 0f);
+    }
+
+    
+    void OnDrawGizmosSelected()
+    {
+        if (target == null) return;
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawLine(target.position, transform.position);
+        Gizmos.DrawWireSphere(target.position, 0.3f);
     }
 }
