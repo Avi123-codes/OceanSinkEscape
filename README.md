@@ -124,10 +124,6 @@ In-game:
 
 ## COMMON ISSUES
 
-### Missing script in Inspector
-- Class name must match file name exactly
-- Check Console errors
-
 ### Trigger not firing
 - At least one object must have Rigidbody
 - Collider must be "Is Trigger"
@@ -143,7 +139,7 @@ In-game:
 
 ---
 
-## COMPLETION CRITERIA
+## How to know if it works
 - Player movement works
 - Camera follows correctly
 - Water kills player
