@@ -1,19 +1,33 @@
-/* Player movement controller */
-
+//player controller
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class SoapController : MonoBehaviour
 {
+    [Header("References")]
+    public Transform cameraTarget; 
+
+    [Header("Movement")]
     public float moveSpeed = 18f;
-    public float jumpForce = 9f;
     public float maxSpeed = 12f;
+
+    [Header("Jump")]
+    public float jumpForce = 9f;
     public LayerMask groundLayer;
+    public float groundCheckRadius = 0.35f;
 
-    private Rigidbody rb;
+    
+    InputAction moveAction;
+    InputAction jumpAction;
 
+    
+    Rigidbody rb;
+
+    
     private float moveX;
     private float moveZ;
 
+    
     private bool jumpQueued;
     private bool isGrounded;
 
@@ -22,67 +36,120 @@ public class SoapController : MonoBehaviour
         rb = GetComponent<Rigidbody>();
 
         if (rb == null)
-        {
-            Debug.LogError("Soap_Player is missing a Rigidbody.");
-        }
+            Debug.LogError("SoapController: Missing Rigidbody component.");
+
+        moveAction = InputSystem.actions.FindAction("Move");
+        jumpAction = InputSystem.actions.FindAction("Jump");
+
+        Cursor.lockState = CursorLockMode.Locked;
     }
 
     void Update()
     {
-        moveX = Input.GetAxis("Horizontal");
-        moveZ = Input.GetAxis("Vertical");
-
-        isGrounded = Physics.Raycast(
-            transform.position,
-            Vector3.down,
-            0.8f,
-            groundLayer
-        );
-
-        if (Input.GetButtonDown("Jump") && isGrounded)
-        {
-            jumpQueued = true;
-        }
+        HandleCursorLock();
+        ReadMovementInput();
+        QueueJump();
     }
 
     void FixedUpdate()
     {
-        Vector3 movement =
-            new Vector3(moveX, 0f, moveZ);
+        CheckGrounded();
+        ApplyMovement();
+        ClampHorizontalSpeed();
+        ApplyJump();
+    }
 
-        rb.AddForce(
-            movement * moveSpeed,
-            ForceMode.Force
+    // Input
+
+    void HandleCursorLock()
+    {
+        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            Cursor.lockState = CursorLockMode.Locked;
+
+        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            Cursor.lockState = CursorLockMode.None;
+    }
+
+    void ReadMovementInput()
+    {
+        Vector2 moveValue = moveAction.ReadValue<Vector2>();
+        moveX = moveValue.x;
+        moveZ = moveValue.y;
+    }
+
+    void QueueJump()
+    {
+        if (jumpAction.WasPressedThisFrame() && isGrounded)
+            jumpQueued = true;
+    }
+
+    // Physics
+
+    void CheckGrounded()
+    {
+        Vector3 checkOrigin = transform.position;
+
+        bool layerCheck = Physics.CheckSphere(
+            checkOrigin,
+            groundCheckRadius,
+            groundLayer,
+            QueryTriggerInteraction.Ignore
         );
 
-        Vector3 flatVelocity =
-            new Vector3(
-                rb.linearVelocity.x,
-                0f,
-                rb.linearVelocity.z
+        bool fallback = false;
+        if (groundLayer.value == 0)
+        {
+            fallback = Physics.Raycast(
+                transform.position,
+                Vector3.down,
+                groundCheckRadius + 0.1f
             );
+        }
+
+        isGrounded = layerCheck || fallback;
+    }
+
+    void ApplyMovement()
+    {
+        Vector3 camForward = cameraTarget != null
+            ? Vector3.ProjectOnPlane(cameraTarget.forward, Vector3.up).normalized
+            : transform.forward;
+
+        Vector3 camRight = cameraTarget != null
+            ? Vector3.ProjectOnPlane(cameraTarget.right, Vector3.up).normalized
+            : transform.right;
+
+        Vector3 move = camRight * moveX + camForward * moveZ;
+
+        if (move.magnitude > 1f)
+            move.Normalize();
+
+        rb.AddForce(move * moveSpeed, ForceMode.Force);
+    }
+
+    void ClampHorizontalSpeed()
+    {
+        Vector3 flatVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
 
         if (flatVelocity.magnitude > maxSpeed)
         {
-            Vector3 limitedVelocity =
-                flatVelocity.normalized * maxSpeed;
-
-            rb.linearVelocity =
-                new Vector3(
-                    limitedVelocity.x,
-                    rb.linearVelocity.y,
-                    limitedVelocity.z
-                );
+            Vector3 limited = flatVelocity.normalized * maxSpeed;
+            rb.linearVelocity = new Vector3(limited.x, rb.linearVelocity.y, limited.z);
         }
+    }
 
-        if (jumpQueued)
-        {
-            rb.AddForce(
-                Vector3.up * jumpForce,
-                ForceMode.Impulse
-            );
+    void ApplyJump()
+    {
+        if (!jumpQueued) return;
 
-            jumpQueued = false;
-        }
+        rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
+        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        jumpQueued = false;
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = isGrounded ? Color.green : Color.red;
+        Gizmos.DrawWireSphere(transform.position, groundCheckRadius);
     }
 }
