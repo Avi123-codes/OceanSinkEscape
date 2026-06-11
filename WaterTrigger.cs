@@ -1,3 +1,4 @@
+//to detect player
 using UnityEngine;
 
 public class WaterTrigger : MonoBehaviour
